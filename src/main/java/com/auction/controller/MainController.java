@@ -19,7 +19,7 @@ import javafx.scene.control.RadioButton;
 import javafx.scene.control.ToggleGroup;
 
 public class MainController {
-
+    @FXML private Button btnCreateAuction;
     // === CÁC THÀNH PHẦN GIAO DIỆN (Liên kết từ FXML qua fx:id) ===
     @FXML private TextField txtUsername;
     @FXML private PasswordField txtPassword;
@@ -239,6 +239,14 @@ public class MainController {
 
                     boxLogin.setVisible(false); boxLogin.setManaged(false);
                     boxLoggedIn.setVisible(true); boxLoggedIn.setManaged(true);
+                    String role = data.get("role").getAsString();
+                    if (role.equals("SELLER")) {
+                        btnCreateAuction.setVisible(true);
+                        btnCreateAuction.setManaged(true);
+                    } else {
+                        btnCreateAuction.setVisible(false);
+                        btnCreateAuction.setManaged(false);
+                    }
                     logToConsole("Đăng nhập thành công!");
                 } else {
                     showAlert("Đăng nhập thất bại", payload);
@@ -288,7 +296,20 @@ public class MainController {
                     logToConsole("Đã vào phòng: " + data.get("itemName").getAsString());
                 }
                 break;
+            case "CREATE_AUCTION_RES":
+                if (status.equals("SUCCESS")) {
+                    // Hiển thị thông báo thành công cho Seller
+                    showAlert("Đăng bán thành công", payload);
+                    logToConsole(">>> 🟢 MỚI: " + payload);
 
+                    // Mẹo UX (Trải nghiệm người dùng):
+                    // Tự động gọi lệnh làm mới danh sách để món hàng vừa tạo hiện lên bảng ngay lập tức
+                    NetworkManager.getInstance().sendMessage(new Message("GET_ALL_AUCTIONS", "{}"));
+                } else {
+                    // Báo lỗi nếu nhập sai định dạng hoặc chưa đủ quyền
+                    showAlert("Lỗi Đăng Bán", payload);
+                }
+                break;
             case "EVENT_BID":
                 if (status.equals("SUCCESS")) {
                     JsonObject eventData = gson.fromJson(payload, JsonObject.class);
@@ -366,6 +387,43 @@ public class MainController {
         alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
+    }
+    @FXML
+    void handleCreateAuction(ActionEvent event) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Đăng bán sản phẩm mới");
+        dialog.setHeaderText("Nhập thông tin sản phẩm bạn muốn đưa lên sàn");
+
+        TextField txtName = new TextField(); txtName.setPromptText("Tên sản phẩm (VD: Laptop Dell)");
+        TextField txtDesc = new TextField(); txtDesc.setPromptText("Mô tả chi tiết / Thương hiệu");
+        TextField txtPrice = new TextField(); txtPrice.setPromptText("Giá khởi điểm ($)");
+        TextField txtDuration = new TextField(); txtDuration.setPromptText("Thời gian đấu giá (tính bằng Giây, VD: 120)");
+
+        VBox vbox = new VBox(10,
+                new Label("Tên sản phẩm:"), txtName,
+                new Label("Mô tả:"), txtDesc,
+                new Label("Giá khởi điểm ($):"), txtPrice,
+                new Label("Thời gian đấu giá (Giây):"), txtDuration
+        );
+
+        dialog.getDialogPane().setContent(vbox);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        dialog.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                try {
+                    JsonObject payload = new JsonObject();
+                    payload.addProperty("itemName", txtName.getText());
+                    payload.addProperty("itemDesc", txtDesc.getText());
+                    payload.addProperty("startPrice", Double.parseDouble(txtPrice.getText()));
+                    payload.addProperty("duration", Integer.parseInt(txtDuration.getText()));
+
+                    NetworkManager.getInstance().sendMessage(new Message("CREATE_AUCTION", payload.toString()));
+                } catch (Exception e) {
+                    showAlert("Lỗi nhập liệu", "Vui lòng nhập đúng định dạng số cho Giá và Thời gian!");
+                }
+            }
+        });
     }
     // === CLASS PHỤ TRỢ CHO BẢNG GIAO DIỆN ===
     public static class AuctionViewItem {

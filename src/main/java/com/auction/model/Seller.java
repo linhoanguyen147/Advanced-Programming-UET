@@ -27,6 +27,9 @@ public class Seller extends User {
         System.out.println("Shop " + shopName + " received revenue of " + amount);
     }
     //getter
+    public double getRevenue() {
+        return revenue;
+    }
     public String getShopName() {
         return shopName;
     }

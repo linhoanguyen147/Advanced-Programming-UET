@@ -7,7 +7,9 @@ import java.util.AbstractCollection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.auction.service.*;
-
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 //an auction
 public class Auction extends Entity {
     //định danh, liên kết
@@ -22,7 +24,8 @@ public class Auction extends Entity {
     //CopyOnWriteArrayList đảm bảo thread-sàe khi có nhiều bid cùng lúc
     private final List<BidTransaction> bidHistory; //lich su dat gia an toan
     private final List<AuctionObserver> observers;
-
+    private int timeLeft; // Tính bằng giây
+    private transient ScheduledExecutorService scheduler;
     public Auction(Item item, Seller seller, LocalDateTime startTime, LocalDateTime endTime) {
         super();
         if (item.getStatus() != ItemStatus.IN_AUCTION) {
@@ -37,7 +40,15 @@ public class Auction extends Entity {
         this.bidHistory = new CopyOnWriteArrayList<>();
         this.observers = new CopyOnWriteArrayList<>();
     }
-
+    public Auction(Item item, Seller seller, int durationSeconds) {
+        this.item = item;
+        this.seller = seller;
+        this.timeLeft = durationSeconds;
+        this.status = AuctionStatus.RUNNING;
+        startTimer();
+        this.bidHistory = new CopyOnWriteArrayList<>();
+        this.observers = new CopyOnWriteArrayList<>();
+    }
     public Auction(Item item, Seller seller) {
         super();
         if (item.getStatus() == ItemStatus.IN_AUCTION) {
@@ -52,7 +63,25 @@ public class Auction extends Entity {
         this.bidHistory = new CopyOnWriteArrayList<>();
         this.observers = new CopyOnWriteArrayList<>();
     }
+    private void startTimer() {
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(() -> {
+            if (timeLeft > 0) {
+                timeLeft--;
+                // Thông báo thời gian cho mọi người (Realtime)
+                notifyTimeUpdate();
+            } else {
+                closeAuction();
+                scheduler.shutdown();
+            }
+        }, 0, 1, TimeUnit.SECONDS);
+    }
 
+    private void notifyTimeUpdate() {
+        for (AuctionObserver obs : observers) {
+            obs.onTimeTick(this, timeLeft);
+        }
+    }
     public void addObserver(AuctionObserver observer) {
         //if (!observers.contains(observer))
         observers.add(observer);
@@ -153,7 +182,7 @@ public class Auction extends Entity {
     public AuctionStatus getStatus() {
         return status;
     }
-
+    public int getTimeLeft() { return timeLeft; }
     public BidTransaction getHighestBid() {
         return highestBid;
     }

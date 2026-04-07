@@ -61,11 +61,51 @@ public class ClientHandler implements Runnable, AuctionObserver {
 
                 if (loggedInUser instanceof Bidder) {
                     resData.addProperty("balance", ((Bidder) loggedInUser).getBalance());
-                } else {
+                    resData.addProperty("role", "BIDDER");
+                }
+                else if (loggedInUser instanceof Seller) {
+                    resData.addProperty("balance", ((Seller) loggedInUser).getRevenue());
+                    resData.addProperty("role", "SELLER"); // Thêm dòng này
+                }
+                else {
                     resData.addProperty("balance", 0.0); // Nếu là Admin
                 }
 
                 sendMessage(new Message("LOGIN_RES", "SUCCESS", resData.toString()));
+            }
+            else if (action.equals("CREATE_AUCTION")) {
+                try {
+                    // 1. Bảo vệ: Chỉ Seller mới được tạo
+                    if (loggedInUser == null || !(loggedInUser instanceof Seller)) {
+                        throw new Exception("Chỉ Người bán (Seller) mới có quyền đăng bán!");
+                    }
+
+                    // 2. Lấy dữ liệu từ giao diện
+                    JsonObject json = gson.fromJson(req.getPayload(), JsonObject.class);
+                    String itemName = json.get("itemName").getAsString();
+                    String itemDesc = json.get("itemDesc").getAsString();
+                    double startPrice = json.get("startPrice").getAsDouble();
+                    int duration = json.get("duration").getAsInt();
+
+                    // 3. Khởi tạo đối tượng
+                    Seller seller = (Seller) loggedInUser;
+                    Item item = ItemFactory.createItem(ItemType.ELECTRONICS, itemName, itemDesc, startPrice, itemDesc);
+
+                    // Sử dụng Constructor có thời gian (duration) đã tạo ở bước trước
+                    Auction newAuction = new Auction(item, seller, duration);
+
+                    // Tự động sinh ID duy nhất cho phiên đấu giá (Ví dụ: AUC-1704123456)
+                    newAuction.setId("AUC-" + System.currentTimeMillis() % 1000000);
+
+                    // 4. Lưu vào hệ thống
+                    AuctionService.getInstance().addAuction(newAuction);
+
+                    // 5. Báo thành công
+                    sendMessage(new Message("CREATE_AUCTION_RES", "SUCCESS", "Sản phẩm " + itemName + " đã được lên sàn!"));
+
+                } catch (Exception e) {
+                    sendMessage(new Message("CREATE_AUCTION_RES", "ERROR", e.getMessage()));
+                }
             }
             else if (action.equals("WATCH")) {
                 JsonObject json = gson.fromJson(req.getPayload(), JsonObject.class);
@@ -227,6 +267,12 @@ public class ClientHandler implements Runnable, AuctionObserver {
     // ==========================================
     // OBSERVER PATTERN: TỰ ĐỘNG GỬI SỰ KIỆN CHO CLIENT
     // ==========================================
+    @Override
+    public void onTimeTick(Auction auction, int timeLeft) {
+        JsonObject data = new JsonObject();
+        data.addProperty("timeLeft", timeLeft);
+        sendMessage(new Message("TIME_UPDATE", "SUCCESS", data.toString()));
+    }
     @Override
     public void newBidPlaced(Auction auction, BidTransaction newBid) {
         JsonObject eventData = new JsonObject();

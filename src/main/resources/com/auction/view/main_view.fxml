@@ -31,6 +31,8 @@
                 <Label fx:id="lblBalance" text="Số dư: $0.0" textFill="#f1c40f">
                     <font><Font name="System Bold" size="14.0" /></font>
                 </Label>
+                <Button fx:id="btnCreateAuction" text="+ Đăng bán sản phẩm" onAction="#handleCreateAuction"
+                        visible="false" managed="false" style="-fx-background-color: #27ae60; -fx-text-fill: white;" />
                 <Button fx:id="btnLogout" text="Đăng xuất" onAction="#handleLogout" style="-fx-background-color: #e74c3c; -fx-text-fill: white;" />
             </HBox>
 
